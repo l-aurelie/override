@@ -1,0 +1,22 @@
+Pour connaitre la taille d'un buffer ou peut regarder sa position par rapport a ebp (ou rbp) ou par rapport aux autres variable. Ex pour le level 2 on sait quon a la premiere var a RBP-0x70 le taille du buffer = distance RBP et 0x70 puis 2eme RBP-0xa0 (distance 0x70 0xa0) et le 3eme  RBP-0x110 (distance 0xa0 0x110)
+
+En 64 bits les params sont rdi, rsi/esi, edx, rcx
+
+===============================================================================
+
+level0 : le programme prend un nb en entree (scanf) et execute un system /bin/sh si le nb=5276
+>> ./level0 5276
+
+level1 : On peut entrer un login et un mot de passe, qui vont etre compares avec "dat_wil" "admin" et s'il sont correct, il ne se passe rien. On va donc tester un overflow sur le 2e fget, le buffer est trop petit par rapport a la size de lecture. On va utiliser cet overflow pour faire un ret2libc
+
+level2 : le programme fait un fopen du password puis on entre un login et un password et on compare le pass avec celui lu du fichier, si ok ça fait un systemctl. Comme on ne peux pas connaitre le mot de passe a l'avance, on va le recuperer directement dans la stack grace au printf non protégé.
+Le printf affiche le username donc si on met %p%p%p%p%p%p%p%p%p%p%p%p%p%p%p en username cela affichera les adresse de la stack et AAAAAAAAAA en pass on pourra trouver le mot de pass juste apres les AAAAAAA. En effet le readfile se trouve entre username et pass en memoire. 
+%p affiche les valeur en hexa. On pourrait afficher la stack direct avec gdb mais on ne peut pas afficher directement le mdp car on ne peux pas ouvrir le fichier pass sans les droit suid et gdb n'executera pas avec les bon droits 
+
+level3 : on recupere un nb mdp avec scanf, on va soustraire mdp a 322424845 pour obtenir nb, on veut que ce nombre soit la bonne clef pour transformer le chaine "Q}|u`sfg~sf{}|a3" en "Congratulations!" en appliquant un ou exclusif avec chaque character et le nb. On fait les calcul pour trouver le bon nb qui est 0x12. Le password a entrer est donc 322424845 - 12 = 322424827
+
+level4 : On a un processus enfant qui s'execute dans le programme et au sein duquel on a un gets que l'on va utiliser pour faire un overflow. Le processus enfant copie la stack du processus adulte, si on ecrase la stack du process enfant avec le buffer on pourra ecraser suffisament loin pour ecraser la stack du processus parents jusqu'au ret pour ecraser l'eip et faire un ret2libc. Pour pouvoir trouver l'offset, on a besoin de suivre le process enfant dans gdb a l'aide de l'option (gdb) set follow-fork-mode child
+
+level5: On utilise un printf sans chaine de parsage : on veut remplacer le exitplt par un shell code. On va mettre le shell code dans les var d'environnement avec des nop avant pour compenser le decalage possible des var env. On va chercher l'offset du buffer en ecrivant aaaa dededans, l'adresse de exitplt et l'adresse de nos var d'env. Comme le padding sera trop long a ecrire (plus d'un int, il faut ecrire bit par bit (a l'envers, en soustrayant a chaque fois ce qu'il ya avant))
+
+level6: On donne un login et un serial en entree. Le programme va faire une serie d'operations sur le login et comparer le resultat avec la serial. Si c'est le meme va faire un exec bin/sh. Donc on veut doit decoder le hash subit. Soit regarder le resultat du hash de notre login pour savoir quel serial entrer. Cependant pour cela il faut d'abord passer la vérification du ptrace pour pouvoir regarder en memoire
