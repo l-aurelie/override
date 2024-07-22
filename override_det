@@ -19,4 +19,18 @@ level4 : On a un processus enfant qui s'execute dans le programme et au sein duq
 
 level5: On utilise un printf sans chaine de parsage : on veut remplacer le exitplt par un shell code. On va mettre le shell code dans les var d'environnement avec des nop avant pour compenser le decalage possible des var env. On va chercher l'offset du buffer en ecrivant aaaa dededans, l'adresse de exitplt et l'adresse de nos var d'env. Comme le padding sera trop long a ecrire (plus d'un int, il faut ecrire bit par bit (a l'envers, en soustrayant a chaque fois ce qu'il ya avant))
 
-level6: On donne un login et un serial en entree. Le programme va faire une serie d'operations sur le login et comparer le resultat avec la serial. Si c'est le meme va faire un exec bin/sh. Donc on veut doit decoder le hash subit. Soit regarder le resultat du hash de notre login pour savoir quel serial entrer. Cependant pour cela il faut d'abord passer la vérification du ptrace pour pouvoir regarder en memoire
+level6: On donne un login et un serial en entree. Le programme va faire une serie d'operations sur le login et comparer le resultat avec la serial. Si c'est le meme va faire un exec bin/sh. Donc on veut soit decoder le hash subit. Soit regarder le resultat du hash de notre login pour savoir quel serial entrer. Cependant pour cela il faut d'abord passer la vérification du ptrace pour pouvoir regarder en memoire
+
+level7: On a un programme qui peut stocker des chiffre ou lire les chiffre dans un buffer en fonction de la chaine qu'on lui passe en entree. Le buffer n'est pas protégé, on peut donc ecrire plus loin. Notre but sera d'ecrire assez loin pour faire une ret2libc en ecrasant l'eip par un system /bin/sh. Pour cela on va trouver l'eip a l'aide d'un info frame.
+On veut trouver la position de l'eip par rapport au debut du buffer. En lisant le code le buffer est a esp+0x24. On affiche le buffer ainsi que les adresse plus loin pour trouver l'eip x/150wx $esp+0x24, on trouve que cést 114 hors il est protogé par %3 = 0, donc on va utiliser le fait que lors  d'un dépassement de MAX_INT, le nombre reviens à 0 puisque seul les bits de poids faible seront pris en compte 
+
+level8: On a un programme qui fait 2fopen et 1open: 
+-fopen de ./backups/.log en mode écriture.
+-fopen du fichier que l'on envoie en argument en mode lecture : il lit ce fichier
+-open de "./backups/" + "notre_argument" : ecrit le contenu du fichier precedemment lu
+Cela va nous permettre de lire le mot de passe. Tous les fichier doivent exister et pouvoir etre ouvert, si ce n'est pas le cas le programme quitte
+Comme arg on va lui passer /home/users/level09/.pass
+Donc il faut creer le fichier de la ou on veut ecrire. On ne peut ecrire que dans tmp donc cd tmp  touch ./backups//home/users/level09/.pass; chmod -R 777 backups. On lance le prog depuis tmp. Il ne faut pas creer le fichier mais juste le path : les flags O_EXCL et O_CREAT echoue si le fichier existe deja
+
+level9 : on a une fonction secret_backdoor non appelee qui fait un system() avec en arg notre input. On veut donc faire un overflow mais strcpy est protege. 
+Dans set_username on est limite a 41 (0 to <= 40) alors que le buffer username est de taille 40 et le chiffre qui sert a calculer la taille du strncpy est juste apres. Donc avec notre input on overflow pour modifier cette taille par 255. et cela nous permettra de faire notre overflow. On cherche l'overflow d'une fonction ret. On en a une a la 200e position : on y place du coup l'adresse de notre fonction secret_backdoor
